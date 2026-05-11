@@ -179,9 +179,3 @@ bash
 - Export bill as PDF
 - Graphical dashboard (charts)
 - UI improvements
----
-👥 Team
-- Yohannes Zeru (1701186)
-- Selam Tsehaye (1701016)
-- Zerubabel Megersa (1701218)
-- Sawrawit Shewakena (1700997)
