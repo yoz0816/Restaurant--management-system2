@@ -3,7 +3,6 @@
 
 #include <QString>
 #include "menuitem.h"
-#include "user.h"
 
 class Validation {
 public:

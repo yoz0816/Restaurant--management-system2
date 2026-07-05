@@ -26,9 +26,12 @@ public:
 
     QList<QVariantMap> getMenuItems(const QString& sortBy = "id", bool ascending = true);
     QList<QVariantMap> getMenuItemsByName(const QString& name);
+    QList<QVariantMap> getUsers();
+    QList<QVariantMap> getOrderItems(int orderId);
+    QVariantMap getOrderSummary(int orderId);
     QVariantMap getMenuItem(int id);
 
-    int createOrder(int userId, double total);
+    int createOrder(int userId, double total, const QString &dateTime = QString());
     bool addOrderItem(int orderId, int menuId, int quantity, double price);
 
     QList<QVariantMap> getSalesReport();

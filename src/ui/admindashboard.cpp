@@ -11,6 +11,8 @@
 #include <QTableWidget>
 #include <QLabel>
 #include <QApplication>
+#include <QDialog>
+#include <QTextEdit>
 
 AdminDashboard::AdminDashboard(Database *db, QWidget *parent)
     : QMainWindow(parent), db(db) {
@@ -60,10 +62,10 @@ void AdminDashboard::setupUI() {
 
     sortCombo = new QComboBox;
     sortCombo->addItems({
-        "Sort by Price (Bubble)",
-        "Sort by Price (Selection)",
-        "Sort by Popularity (Bubble)",
-        "Sort by Popularity (Selection)"
+        "Price: low to high",
+        "Price: high to low",
+        "Popularity: low to high",
+        "Popularity: high to low"
     });
 
     sortButton = new QPushButton("Sort");
@@ -95,7 +97,9 @@ void AdminDashboard::setupUI() {
     layout->addWidget(menuTable);
 
     salesButton = new QPushButton("View Sales Report");
+    viewUsersButton = new QPushButton("View Users");
     layout->addWidget(salesButton);
+    layout->addWidget(viewUsersButton);
 
     QHBoxLayout *bottomLayout = new QHBoxLayout;
 
@@ -113,6 +117,7 @@ void AdminDashboard::setupUI() {
     connect(sortButton, &QPushButton::clicked, this, &AdminDashboard::onSortClicked);
     connect(searchButton, &QPushButton::clicked, this, &AdminDashboard::onSearchClicked);
     connect(salesButton, &QPushButton::clicked, this, &AdminDashboard::onViewSalesClicked);
+    connect(viewUsersButton, &QPushButton::clicked, this, &AdminDashboard::onViewUsersClicked);
 
     connect(logoutButton, &QPushButton::clicked, this, &AdminDashboard::onLogoutClicked);
     connect(exitButton, &QPushButton::clicked, this, &AdminDashboard::onExitClicked);
@@ -233,14 +238,54 @@ void AdminDashboard::onDeleteItemClicked() {
 
 void AdminDashboard::onSortClicked() {
     switch (sortCombo->currentIndex()) {
-        case 0: menuItems.bubbleSortByPrice(); break;
-        case 1: menuItems.selectionSortByPrice(); break;
-        case 2: menuItems.bubbleSortByPopularity(); break;
-        case 3: menuItems.selectionSortByPopularity(); break;
+        case 0:
+            menuItems.bubbleSortByPrice(true);
+            break;
+        case 1:
+            menuItems.bubbleSortByPrice(false);
+            break;
+        case 2:
+            menuItems.selectionSortByPopularity(false);
+            break;
+        case 3:
+            menuItems.selectionSortByPopularity(true);
+            break;
     }
 
     populateTable();
     menuTable->clearSelection();
+}
+
+void AdminDashboard::onViewUsersClicked() {
+    QList<QVariantMap> users = db->getUsers();
+
+    QDialog dialog(this);
+    dialog.setWindowTitle("User List");
+    dialog.resize(400, 300);
+
+    QVBoxLayout *layout = new QVBoxLayout(&dialog);
+    QTableWidget *userTable = new QTableWidget;
+    userTable->setColumnCount(3);
+    userTable->setHorizontalHeaderLabels({"ID", "Username", "Role"});
+    userTable->horizontalHeader()->setStretchLastSection(true);
+    userTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    userTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    userTable->setRowCount(users.size());
+
+    for (int i = 0; i < users.size(); ++i) {
+        const QVariantMap &user = users.at(i);
+        userTable->setItem(i, 0, new QTableWidgetItem(QString::number(user["id"].toInt())));
+        userTable->setItem(i, 1, new QTableWidgetItem(user["username"].toString()));
+        userTable->setItem(i, 2, new QTableWidgetItem(user["role"].toString()));
+    }
+
+    layout->addWidget(userTable);
+
+    QPushButton *closeButton = new QPushButton("Close");
+    layout->addWidget(closeButton);
+    connect(closeButton, &QPushButton::clicked, &dialog, &QDialog::accept);
+
+    dialog.exec();
 }
 
 void AdminDashboard::onSearchClicked() {
@@ -248,11 +293,9 @@ void AdminDashboard::onSearchClicked() {
     QString query = searchEdit->text().trimmed();
 
     if (query.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Enter search value.");
+        loadMenu();
         return;
     }
-
-    menuTable->clearSelection();
 
     if (searchCombo->currentIndex() == 0) {
 
@@ -267,8 +310,14 @@ void AdminDashboard::onSearchClicked() {
         int row = menuItems.findById(id);
 
         if (row >= 0) {
-            menuTable->selectRow(row);
-            menuTable->scrollToItem(menuTable->item(row, 0));
+            menuTable->clearContents();
+            menuTable->setRowCount(1);
+            const MenuItem &item = menuItems.at(row);
+            menuTable->setItem(0, 0, new QTableWidgetItem(QString::number(item.id)));
+            menuTable->setItem(0, 1, new QTableWidgetItem(item.name));
+            menuTable->setItem(0, 2, new QTableWidgetItem(QString::number(item.price)));
+            menuTable->setItem(0, 3, new QTableWidgetItem(QString::number(item.stock)));
+            menuTable->setItem(0, 4, new QTableWidgetItem(QString::number(item.sold)));
         } else {
             QMessageBox::information(this, "Not Found", "Item not found.");
         }
@@ -277,10 +326,16 @@ void AdminDashboard::onSearchClicked() {
         QList<int> results = menuItems.findAllByName(query);
 
         if (!results.isEmpty()) {
-            for (int r : results)
-                menuTable->selectRow(r);
-
-            menuTable->scrollToItem(menuTable->item(results.first(), 0));
+            menuTable->clearContents();
+            menuTable->setRowCount(results.size());
+            for (int rowIndex = 0; rowIndex < results.size(); ++rowIndex) {
+                const MenuItem &item = menuItems.at(results[rowIndex]);
+                menuTable->setItem(rowIndex, 0, new QTableWidgetItem(QString::number(item.id)));
+                menuTable->setItem(rowIndex, 1, new QTableWidgetItem(item.name));
+                menuTable->setItem(rowIndex, 2, new QTableWidgetItem(QString::number(item.price)));
+                menuTable->setItem(rowIndex, 3, new QTableWidgetItem(QString::number(item.stock)));
+                menuTable->setItem(rowIndex, 4, new QTableWidgetItem(QString::number(item.sold)));
+            }
         } else {
             QMessageBox::information(this, "Not Found", "Item not found.");
         }
@@ -295,16 +350,119 @@ void AdminDashboard::onViewSalesClicked() {
         return;
     }
 
-    QString text = "Sales Report:\n\n";
+    QDialog reportDialog(this);
+    reportDialog.setWindowTitle("Sales Report");
+    reportDialog.resize(640, 360);
 
-    for (const auto &s : sales) {
-        text += "ID: " + s["sale_id"].toString()
-             + " | Total: " + s["total_amount"].toString()
-             + " | Date: " + s["date"].toString()
-             + "\n";
+    QTableWidget *salesTable = new QTableWidget(&reportDialog);
+    salesTable->setColumnCount(3);
+    salesTable->setHorizontalHeaderLabels({"Order ID", "Date", "Total"});
+    salesTable->setRowCount(sales.count());
+    salesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    salesTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    salesTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+    for (int i = 0; i < sales.count(); ++i) {
+        const QVariantMap &sale = sales.at(i);
+        salesTable->setItem(i, 0, new QTableWidgetItem(sale["sale_id"].toString()));
+        salesTable->setItem(i, 1, new QTableWidgetItem(sale["date"].toString()));
+        salesTable->setItem(i, 2, new QTableWidgetItem(QString::number(sale["total_amount"].toDouble(), 'f', 2)));
     }
 
-    QMessageBox::information(this, "Sales Report", text);
+    QPushButton *invoiceButton = new QPushButton("View Invoice", &reportDialog);
+    QPushButton *closeButton = new QPushButton("Close", &reportDialog);
+
+    connect(invoiceButton, &QPushButton::clicked, this, [this, salesTable, &reportDialog]() {
+        const QList<QTableWidgetItem*> selected = salesTable->selectedItems();
+        if (selected.isEmpty()) {
+            QMessageBox::warning(&reportDialog, "Select Order", "Please select an order to view the invoice.");
+            return;
+        }
+        int orderId = salesTable->item(selected.first()->row(), 0)->text().toInt();
+        showSaleInvoice(orderId);
+    });
+
+    connect(closeButton, &QPushButton::clicked, &reportDialog, &QDialog::accept);
+
+    QVBoxLayout *dialogLayout = new QVBoxLayout(&reportDialog);
+    dialogLayout->addWidget(salesTable);
+
+    QHBoxLayout *buttonLayout = new QHBoxLayout;
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(invoiceButton);
+    buttonLayout->addWidget(closeButton);
+    dialogLayout->addLayout(buttonLayout);
+
+    reportDialog.exec();
+}
+
+void AdminDashboard::showSaleInvoice(int orderId) {
+    QList<QVariantMap> items = db->getOrderItems(orderId);
+    if (items.isEmpty()) {
+        QMessageBox::information(this, "Invoice", "No invoice details found for this order.");
+        return;
+    }
+
+    QVariantMap orderInfo = db->getOrderSummary(orderId);
+    if (orderInfo.isEmpty()) {
+        QMessageBox::information(this, "Invoice", "Unable to load order summary.");
+        return;
+    }
+
+    QString invoice = QString("Receipt\n"
+                              "==============================================\n"
+                              "Order ID: %1\n"
+                              "Date: %2\n"
+                              "Customer: %3\n"
+                              "==============================================\n"
+                              "Item                         Qty   Price   Total\n"
+                              "----------------------------------------------\n")
+                      .arg(orderInfo["sale_id"].toString())
+                      .arg(orderInfo["date"].toString())
+                      .arg(orderInfo["username"].toString().isEmpty() ? QString("Guest") : orderInfo["username"].toString());
+
+    double subtotal = 0.0;
+    for (const auto &item : items) {
+        double qty = item["quantity"].toDouble();
+        double price = item["price"].toDouble();
+        double itemTotal = qty * price;
+        subtotal += itemTotal;
+
+        invoice += QString("%1 %2 %3 %4\n")
+                     .arg(item["name"].toString().leftJustified(25, ' '))
+                     .arg(QString::number(qty).rightJustified(3, ' '))
+                     .arg(QString::number(price, 'f', 2).rightJustified(8, ' '))
+                     .arg(QString::number(itemTotal, 'f', 2).rightJustified(10, ' '));
+    }
+
+    double tax = subtotal * 0.15;
+    double grandTotal = orderInfo["total_amount"].toDouble();
+
+    invoice += "----------------------------------------------\n";
+    invoice += QString("Subtotal: %1\n").arg(QString::number(subtotal, 'f', 2), 0, QChar(' '));
+    invoice += QString("Tax (15%): %1\n").arg(QString::number(tax, 'f', 2), 0, QChar(' '));
+    invoice += QString("Total: %1\n").arg(QString::number(grandTotal, 'f', 2), 0, QChar(' '));
+    invoice += "==============================================\n";
+    invoice += "Payment: Cash / Card\n";
+    invoice += "Thank you for your business!\n";
+
+    QDialog invoiceDialog(this);
+    invoiceDialog.setWindowTitle("Order Invoice");
+    invoiceDialog.resize(520, 420);
+
+    QTextEdit *invoiceText = new QTextEdit(&invoiceDialog);
+    invoiceText->setReadOnly(true);
+    invoiceText->setFontFamily("Courier");
+    invoiceText->setPlainText(invoice);
+
+    QPushButton *closeButton = new QPushButton("Close", &invoiceDialog);
+    connect(closeButton, &QPushButton::clicked, &invoiceDialog, &QDialog::accept);
+
+    QVBoxLayout *layout = new QVBoxLayout(&invoiceDialog);
+    layout->addWidget(invoiceText);
+    layout->addWidget(closeButton, 0, Qt::AlignRight);
+
+    invoiceDialog.exec();
 }
 
 void AdminDashboard::onLogoutClicked() {

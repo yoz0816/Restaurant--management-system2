@@ -1,4 +1,5 @@
 #include "menu_linkedlist.h"
+#include <QPair>
 #include <stdexcept>
 #include <algorithm>
 
@@ -94,13 +95,102 @@ QList<int> MenuLinkedList::findAllByName(const QString& name) const {
 
     while (temp) {
         QString itemName = temp->item.name.trimmed().toLower();
-        if (itemName.contains(query)) {
-            results.append(index);
+        bool match = false;
+        if (itemName.startsWith(query)) {
+            match = true;
+        } else if (itemName.contains(" " + query)) {
+       
+            match = true;
+        } else if (query.size() >= 3 && itemName.contains(query)) {
+          
+            match = true;
         }
+
+        if (match) results.append(index);
         temp = temp->next;
         index++;
     }
 
+    return results;
+}
+
+QList<int> MenuLinkedList::binarySearchAllByName(const QString& name) const {
+    QList<int> results;
+    QString query = name.trimmed().toLower();
+    if (query.isEmpty()) return results;
+
+    QList<MenuItem> items = toList();
+    QList<QPair<QString, int>> indexedNames;
+    for (int i = 0; i < items.size(); ++i) {
+        indexedNames.append({items[i].name.trimmed().toLower(), i});
+    }
+
+    std::sort(indexedNames.begin(), indexedNames.end(), [](const QPair<QString, int>& a, const QPair<QString, int>& b) {
+        return a.first < b.first;
+    });
+
+    int left = 0;
+    int right = indexedNames.size() - 1;
+    int found = -1;
+
+    while (left <= right) {
+        int mid = (left + right) / 2;
+        const QString& midName = indexedNames[mid].first;
+
+        if (midName.startsWith(query)) {
+            found = mid;
+            break;
+        }
+
+        if (midName < query) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    if (found == -1) {
+       
+        return results;
+    }
+
+    int first = found;
+    while (first > 0 && indexedNames[first - 1].first.startsWith(query)) {
+        first--;
+    }
+
+    int last = found;
+    while (last + 1 < indexedNames.size() && indexedNames[last + 1].first.startsWith(query)) {
+        last++;
+    }
+
+    for (int i = first; i <= last; ++i) {
+        results.append(indexedNames[i].second);
+    }
+
+ 
+    for (int i = 0; i < items.size(); ++i) {
+        const QString iname = items[i].name.trimmed().toLower();
+        if (iname.startsWith(query)) continue;
+
+        bool match = false;
+
+        QStringList parts = iname.split(' ', Qt::SkipEmptyParts);
+        for (const QString &p : parts) {
+            if (p.startsWith(query)) {
+                match = true;
+                break;
+            }
+        }
+
+    
+        if (!match && query.size() >= 3 && iname.contains(query)) match = true;
+
+        if (match) results.append(i);
+    }
+
+    std::sort(results.begin(), results.end());
+    results.erase(std::unique(results.begin(), results.end()), results.end());
     return results;
 }
 
@@ -169,58 +259,14 @@ void MenuLinkedList::bubbleSortByPrice(bool ascending) {
         MenuNode* current = head;
 
         while (current->next) {
+            const QString currentName = current->item.name.trimmed().toLower();
+            const QString nextName = current->next->item.name.trimmed().toLower();
+
             bool condition = ascending
-                ? (current->item.price > current->next->item.price)
-                : (current->item.price < current->next->item.price);
-
-            if (condition) {
-                std::swap(current->item, current->next->item);
-                swapped = true;
-            }
-            current = current->next;
-        }
-    } while (swapped);
-}
-
-void MenuLinkedList::selectionSortByPrice(bool ascending) {
-    if (!head || !head->next) return;
-
-    MenuNode* start = head;
-
-    while (start->next) {
-        MenuNode* target = start;
-        MenuNode* current = start->next;
-
-        while (current) {
-            bool condition = ascending
-                ? (current->item.price < target->item.price)
-                : (current->item.price > target->item.price);
-
-            if (condition)
-                target = current;
-
-            current = current->next;
-        }
-
-        if (target != start)
-            std::swap(start->item, target->item);
-
-        start = start->next;
-    }
-}
-
-void MenuLinkedList::bubbleSortByPopularity(bool descending) {
-    if (!head || !head->next) return;
-
-    bool swapped;
-    do {
-        swapped = false;
-        MenuNode* current = head;
-
-        while (current->next) {
-            bool condition = descending
-                ? (current->item.sold < current->next->item.sold)
-                : (current->item.sold > current->next->item.sold);
+                ? (current->item.price > current->next->item.price
+                   || (current->item.price == current->next->item.price && currentName > nextName))
+                : (current->item.price < current->next->item.price
+                   || (current->item.price == current->next->item.price && currentName > nextName));
 
             if (condition) {
                 std::swap(current->item, current->next->item);
@@ -241,9 +287,14 @@ void MenuLinkedList::selectionSortByPopularity(bool descending) {
         MenuNode* current = start->next;
 
         while (current) {
+            const QString currentName = current->item.name.trimmed().toLower();
+            const QString targetName = target->item.name.trimmed().toLower();
+
             bool condition = descending
-                ? (current->item.sold > target->item.sold)
-                : (current->item.sold < target->item.sold);
+                ? (current->item.sold > target->item.sold
+                   || (current->item.sold == target->item.sold && currentName < targetName))
+                : (current->item.sold < target->item.sold
+                   || (current->item.sold == target->item.sold && currentName < targetName));
 
             if (condition)
                 target = current;

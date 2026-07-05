@@ -26,6 +26,7 @@ public:
 
     int findById(int id) const;
     QList<int> findAllByName(const QString& name) const;
+    QList<int> binarySearchAllByName(const QString& name) const;
 
     MenuItem* getById(int id);
 
@@ -37,8 +38,6 @@ public:
     void clear();
 
     void bubbleSortByPrice(bool ascending = true);
-    void selectionSortByPrice(bool ascending = true);
-    void bubbleSortByPopularity(bool descending = true);
     void selectionSortByPopularity(bool descending = true);
 
     void forEach(std::function<void(const MenuItem&)> func) const;

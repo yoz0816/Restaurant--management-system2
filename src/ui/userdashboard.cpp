@@ -5,12 +5,16 @@
 #include <QMessageBox>
 #include <QHeaderView>
 #include <QApplication>
+#include <QDialog>
+#include <QDateTime>
+#include <QFontDatabase>
 
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTextEdit>
 #include <QLabel>
 #include <QTableWidget>
+#include <QComboBox>
 #include <QSqlDatabase>
 
 UserDashboard::UserDashboard(Database *db, const QString &username, QWidget *parent)
@@ -43,13 +47,33 @@ void UserDashboard::setupUI() {
     connect(searchButton, &QPushButton::clicked,
             this, &UserDashboard::onSearchClicked);
 
+    QHBoxLayout *sortLayout = new QHBoxLayout;
+    sortLayout->addWidget(new QLabel("Sort by:"));
+
+    sortCombo = new QComboBox;
+    sortCombo->addItems({
+        "Price: low to high",
+        "Price: high to low",
+        "Popularity: low to high",
+        "Popularity: high to low"
+    });
+    sortLayout->addWidget(sortCombo);
+
+    sortButton = new QPushButton("Sort");
+    sortLayout->addWidget(sortButton);
+    layout->addLayout(sortLayout);
+
+    connect(sortButton, &QPushButton::clicked,
+            this, &UserDashboard::onSortClicked);
+
     menuTable = new QTableWidget;
-    menuTable->setColumnCount(4);
-    menuTable->setHorizontalHeaderLabels({"ID", "Name", "Price", "Stock"});
+    menuTable->setColumnCount(5);
+    menuTable->setHorizontalHeaderLabels({"ID", "Name", "Price", "Stock", "Popularity"});
     menuTable->horizontalHeader()->setStretchLastSection(true);
     menuTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     menuTable->setSelectionMode(QAbstractItemView::MultiSelection);
     menuTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    menuTable->setMinimumHeight(320);
 
     layout->addWidget(menuTable);
 
@@ -83,10 +107,6 @@ void UserDashboard::setupUI() {
     orderLayout->addWidget(generateBillButton);
     layout->addLayout(orderLayout);
 
-    billText = new QTextEdit;
-    billText->setReadOnly(true);
-    layout->addWidget(billText);
-
     QHBoxLayout *bottomLayout = new QHBoxLayout;
     logoutButton = new QPushButton("Logout");
     exitButton = new QPushButton("Exit");
@@ -116,6 +136,8 @@ void UserDashboard::setupUI() {
 
 void UserDashboard::loadMenu() {
     menuItems.clear();
+    currentSearchResults.clear();
+    searchEdit->clear();
 
     QList<QVariantMap> items = db->getMenuItems();
 
@@ -127,6 +149,23 @@ void UserDashboard::loadMenu() {
             item["stock"].toInt(),
             item["sold"].toInt()
         ));
+    }
+
+    if (sortCombo->currentIndex() >= 0) {
+        switch (sortCombo->currentIndex()) {
+            case 0:
+                menuItems.bubbleSortByPrice(true);
+                break;
+            case 1:
+                menuItems.bubbleSortByPrice(false);
+                break;
+            case 2:
+                menuItems.selectionSortByPopularity(false);
+                break;
+            case 3:
+                menuItems.selectionSortByPopularity(true);
+                break;
+        }
     }
 
     populateMenuTable();
@@ -143,6 +182,7 @@ void UserDashboard::populateMenuTable() {
         menuTable->setItem(i, 1, new QTableWidgetItem(item.name));
         menuTable->setItem(i, 2, new QTableWidgetItem(QString::number(item.price)));
         menuTable->setItem(i, 3, new QTableWidgetItem(QString::number(item.stock)));
+        menuTable->setItem(i, 4, new QTableWidgetItem(QString::number(item.sold)));
     }
 }
 
@@ -161,45 +201,75 @@ void UserDashboard::populateOrderTable() {
     });
 }
 
+void UserDashboard::onSortClicked() {
+    loadMenu();
+}
+
 void UserDashboard::onSearchClicked() {
 
     QString query = searchEdit->text().trimmed();
 
     if (query.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Enter search text.");
+        loadMenu();
         return;
     }
 
-    menuTable->clearSelection();
+    currentSearchResults = menuItems.binarySearchAllByName(query);
 
-    QList<int> results = menuItems.findAllByName(query);
-
-    if (results.isEmpty()) {
+    if (currentSearchResults.isEmpty()) {
         QMessageBox::information(this, "Not Found", "Item not found.");
         return;
     }
 
-    int firstRow = results.first();
-    menuTable->selectRow(firstRow);
-    menuTable->scrollToItem(menuTable->item(firstRow, 0));
+    menuTable->clearContents();
+    menuTable->setRowCount(currentSearchResults.size());
+
+    for (int rowIndex = 0; rowIndex < currentSearchResults.size(); ++rowIndex) {
+        const MenuItem &item = menuItems.at(currentSearchResults[rowIndex]);
+        menuTable->setItem(rowIndex, 0, new QTableWidgetItem(QString::number(item.id)));
+        menuTable->setItem(rowIndex, 1, new QTableWidgetItem(item.name));
+        menuTable->setItem(rowIndex, 2, new QTableWidgetItem(QString::number(item.price)));
+        menuTable->setItem(rowIndex, 3, new QTableWidgetItem(QString::number(item.stock)));
+        menuTable->setItem(rowIndex, 4, new QTableWidgetItem(QString::number(item.sold)));
+    }
 }
 
 void UserDashboard::onAddToOrderClicked() {
 
     int row = menuTable->currentRow();
 
-    if (row < 0 || row >= menuItems.size()) {
+    if (row < 0) {
         QMessageBox::warning(this, "Error", "Select an item first.");
         return;
     }
 
-    const MenuItem& item = menuItems.at(row);
+    int actualIndex = row;
+    if (!currentSearchResults.isEmpty()) {
+        if (row >= currentSearchResults.size()) {
+            QMessageBox::warning(this, "Error", "Invalid selection.");
+            return;
+        }
+        actualIndex = currentSearchResults[row];
+    } else {
+        if (row >= menuItems.size()) {
+            QMessageBox::warning(this, "Error", "Invalid selection.");
+            return;
+        }
+    }
+
+    const MenuItem& item = menuItems.at(actualIndex);
 
     bool ok;
     int qty = quantityEdit->text().toInt(&ok);
 
     if (!ok || qty <= 0) {
         QMessageBox::warning(this, "Error", "Invalid quantity.");
+        return;
+    }
+
+   
+    if (!item.isAvailable(qty)) {
+        QMessageBox::warning(this, "Error", "Not enough stock available.");
         return;
     }
 
@@ -267,24 +337,37 @@ void UserDashboard::onGenerateBillClicked() {
     }
 
     double subtotal = orderList.calculateTotal();
-    double tax = subtotal * 0.1;
+    double tax = subtotal * 0.15;
     double total = subtotal + tax;
+    QString orderDate = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
 
-    QString bill = "Bill\n\n";
+    QString bill;
+    bill += "------------------------------\n";
+    bill += "   Restaurant Management System\n";
+    bill += "------------------------------\n";
+    bill += QString("USER: %1\n").arg(username);
+    bill += QString("Date: %1\n\n").arg(orderDate);
+
+    bill += QString("%1  %2  %3  %4\n")
+            .arg("Qty", 3)
+            .arg("Item", -22)
+            .arg("Price", 8)
+            .arg("Total", 8);
+    bill += "------------------------------------------------\n";
 
     orderList.forEach([&](const OrderItem& item) {
-        bill += QString("%1 x %2 = %3\n")
-                .arg(item.itemName)
-                .arg(item.quantity)
-                .arg(item.quantity * item.price);
+        bill += QString("%1  %2  %3  %4\n")
+                .arg(item.quantity, 3)
+                .arg(item.itemName, -22)
+                .arg(item.price, 8, 'f', 2)
+                .arg(item.quantity * item.price, 8, 'f', 2);
     });
 
-    bill += QString("\nSubtotal: %1\nTax: %2\nTotal: %3")
-            .arg(subtotal)
-            .arg(tax)
-            .arg(total);
-
-    billText->setText(bill);
+    bill += "------------------------------------------------\n";
+    bill += QString("%1 %2\n").arg("Subtotal:", -31).arg(QString::number(subtotal, 'f', 2), 8);
+    bill += QString("%1 %2\n").arg("Tax (15%):", -31).arg(QString::number(tax, 'f', 2), 8);
+    bill += QString("%1 %2\n\n").arg("Total:", -31).arg(QString::number(total, 'f', 2), 8);
+    bill += "Thank you for your order!\n";
 
     QSqlDatabase database = QSqlDatabase::database();
 
@@ -293,7 +376,7 @@ void UserDashboard::onGenerateBillClicked() {
         return;
     }
 
-    int orderId = db->createOrder(userId, total);
+    int orderId = db->createOrder(userId, total, orderDate);
     if (orderId == -1) {
         database.rollback();
         QMessageBox::warning(this, "Error", "Order creation failed.");
@@ -332,7 +415,22 @@ void UserDashboard::onGenerateBillClicked() {
         return;
     }
 
-    QMessageBox::information(this, "Success", "Order completed.");
+    QDialog receiptDialog(this);
+    receiptDialog.setWindowTitle("Receipt");
+    receiptDialog.resize(520, 420);
+
+    QVBoxLayout *receiptLayout = new QVBoxLayout(&receiptDialog);
+    QTextEdit *receiptText = new QTextEdit;
+    receiptText->setReadOnly(true);
+    receiptText->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    receiptText->setPlainText(bill);
+    receiptLayout->addWidget(receiptText);
+
+    QPushButton *closeReceiptButton = new QPushButton("Close");
+    receiptLayout->addWidget(closeReceiptButton);
+    connect(closeReceiptButton, &QPushButton::clicked, &receiptDialog, &QDialog::accept);
+
+    receiptDialog.exec();
 
     orderList.clear();
     populateOrderTable();

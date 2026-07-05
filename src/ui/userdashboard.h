@@ -13,7 +13,7 @@ class QTableWidget;
 class QPushButton;
 class QLineEdit;
 class QLabel;
-class QTextEdit;
+class QComboBox;
 
 class UserDashboard : public QMainWindow {
     Q_OBJECT
@@ -29,6 +29,7 @@ private slots:
     void onAddToOrderClicked();
     void onRemoveFromOrderClicked();
     void onGenerateBillClicked();
+    void onSortClicked();
     void loadMenu();
 
     void onSearchClicked();   
@@ -50,6 +51,8 @@ private:
     QLineEdit *quantityEdit;
 
     QLineEdit *searchEdit;
+    QComboBox *sortCombo;
+    QPushButton *sortButton;
     QPushButton *searchButton;
 
     QPushButton *addToOrderButton;
@@ -59,10 +62,9 @@ private:
     QPushButton *logoutButton;
     QPushButton *exitButton;
 
-    QTextEdit *billText;
-
     MenuLinkedList menuItems;
-    LinkedList orderList;    
+    LinkedList orderList;
+    QList<int> currentSearchResults;
 };
 
 #endif

@@ -9,7 +9,7 @@ struct User {
     QString password;
     QString role; 
 
-    User() : id(0), username(""), password(""), role("user") {}
+    User() : id(0), username(""), password(""), role("USER") {}
 
     User(int i, const QString& u, const QString& p, const QString& r)
         : id(i), username(u), password(p), role(r) {}

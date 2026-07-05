@@ -11,11 +11,15 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QButtonGroup>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QResizeEvent>
 
 LoginWindow::LoginWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     setupUI();
+    centerWindow();
 
     if (!db.ensureConnection()) {
         QMessageBox::critical(this, "Database Error",
@@ -29,7 +33,20 @@ void LoginWindow::setupUI() {
     QWidget *centralWidget = new QWidget(this);
     setCentralWidget(centralWidget);
 
-    QVBoxLayout *layout = new QVBoxLayout(centralWidget);
+    QVBoxLayout *outerLayout = new QVBoxLayout(centralWidget);
+    outerLayout->setContentsMargins(20, 20, 20, 20);
+    outerLayout->addStretch();
+
+    QHBoxLayout *middleLayout = new QHBoxLayout;
+    middleLayout->addStretch();
+
+    QWidget *formWidget = new QWidget;
+    formWidget->setMinimumWidth(420);
+    formWidget->setMaximumWidth(460);
+    formWidget->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+
+    QVBoxLayout *layout = new QVBoxLayout(formWidget);
+    layout->setSpacing(12);
 
     modeLabel = new QLabel("Select Mode:");
     layout->addWidget(modeLabel);
@@ -45,23 +62,38 @@ void LoginWindow::setupUI() {
     QHBoxLayout *modeLayout = new QHBoxLayout;
     modeLayout->addWidget(loginRadio);
     modeLayout->addWidget(registerRadio);
+    modeLayout->addStretch();
     layout->addLayout(modeLayout);
 
     layout->addWidget(new QLabel("Username:"));
     usernameEdit = new QLineEdit;
+    usernameEdit->setMinimumWidth(220);
+    usernameEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     layout->addWidget(usernameEdit);
 
     layout->addWidget(new QLabel("Password:"));
     passwordEdit = new QLineEdit;
     passwordEdit->setEchoMode(QLineEdit::Password);
+    passwordEdit->setMinimumWidth(220);
+    passwordEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     layout->addWidget(passwordEdit);
 
+    QHBoxLayout *buttonLayout = new QHBoxLayout;
     loginButton = new QPushButton("Login");
     registerButton = new QPushButton("Register");
     registerButton->setVisible(false);
+    loginButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    registerButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-    layout->addWidget(loginButton);
-    layout->addWidget(registerButton);
+    buttonLayout->addWidget(loginButton);
+    buttonLayout->addWidget(registerButton);
+    layout->addLayout(buttonLayout);
+    layout->addStretch();
+
+    middleLayout->addWidget(formWidget);
+    middleLayout->addStretch();
+    outerLayout->addLayout(middleLayout);
+    outerLayout->addStretch();
 
     connect(loginRadio, &QRadioButton::toggled,
             this, &LoginWindow::onModeChanged);
@@ -76,7 +108,24 @@ void LoginWindow::setupUI() {
             this, &LoginWindow::onLoginClicked);
 
     setWindowTitle("RMS Login");
-    resize(320, 220);
+    setMinimumSize(520, 380);
+    resize(520, 380);
+}
+
+void LoginWindow::resizeEvent(QResizeEvent *event) {
+    QMainWindow::resizeEvent(event);
+    centerWindow();
+}
+
+void LoginWindow::centerWindow() {
+    QScreen *screen = QGuiApplication::primaryScreen();
+    if (!screen)
+        return;
+
+    QRect screenGeometry = screen->availableGeometry();
+    int x = screenGeometry.x() + (screenGeometry.width() - width()) / 2;
+    int y = screenGeometry.y() + (screenGeometry.height() - height()) / 2;
+    move(x, y);
 }
 
 void LoginWindow::onModeChanged() {
@@ -160,7 +209,7 @@ void LoginWindow::onRegisterClicked() {
         return;
     }
 
-    if (db.registerUser(username, password, "CASHIER")) {
+    if (db.registerUser(username, password, "USER")) {
         QMessageBox::information(this, "Success",
                                  "User registered successfully.");
 

@@ -31,6 +31,7 @@ private slots:
     void onSortClicked();
     void onSearchClicked();
     void onViewSalesClicked();
+    void onViewUsersClicked();
     void onLogoutClicked();
     void onExitClicked();
 
@@ -38,6 +39,7 @@ private:
     void setupUI();
     void loadMenu();
     void populateTable();
+    void showSaleInvoice(int orderId);
 
     Database *db;
 
@@ -51,6 +53,7 @@ private:
     QPushButton *sortButton;
     QPushButton *searchButton;
     QPushButton *salesButton;
+    QPushButton *viewUsersButton;
 
     QPushButton *logoutButton;
     QPushButton *exitButton;

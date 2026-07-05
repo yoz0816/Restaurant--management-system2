@@ -23,8 +23,12 @@ private slots:
     void onModeChanged();
     void showLoginAgain();
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
     void setupUI();
+    void centerWindow();
 
     QLineEdit *usernameEdit;
     QLineEdit *passwordEdit;
