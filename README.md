@@ -15,9 +15,6 @@ It manages restaurant operations such as menu handling, order processing, billin
 - Database
 - Default Login
 - System Flow
-- Future Improvements
-- Team
-
 ---
 
 ## 📌 Overview
@@ -171,11 +168,3 @@ bash
    - `orders` table  
    - `order_items` table  
 8. Stock and sales are updated automatically  
-
----
-
-🔒 Future Improvements
-- Password hashing
-- Export bill as PDF
-- Graphical dashboard (charts)
-- UI improvements
